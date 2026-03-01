@@ -1,2 +1,310 @@
-# suraj
-ludo game
+# LUDO PRO
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Pro Ludo</title>
+
+<style>
+body{
+text-align:center;
+font-family:Arial;
+background:#121212;
+color:white;
+margin:0;
+}
+
+.light{
+background:#f5f5f5;
+color:black;
+}
+
+h2,h3{margin:5px;}
+
+.controls{
+padding:10px;
+}
+
+.board{
+width:520px;
+height:520px;
+margin:auto;
+display:grid;
+grid-template-columns:repeat(13,1fr);
+grid-template-rows:repeat(13,1fr);
+}
+
+.cell{
+border:1px solid #333;
+display:flex;
+align-items:center;
+justify-content:center;
+position:relative;
+}
+
+.safe{
+background:#2e2e2e;
+}
+
+.token{
+width:18px;
+height:18px;
+border-radius:50%;
+cursor:pointer;
+}
+
+.red{background:red;}
+.blue{background:blue;}
+.green{background:green;}
+.yellow{background:gold;}
+
+.selected{
+outline:3px solid white;
+}
+
+button{
+padding:8px 15px;
+margin:5px;
+cursor:pointer;
+}
+
+#menu{
+padding:20px;
+}
+</style>
+</head>
+<body>
+
+<div id="menu">
+<h2>Ultimate Pro Ludo</h2>
+Players:
+<select id="playerCount">
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4" selected>4</option>
+</select>
+<br><br>
+<button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="game" style="display:none;">
+
+<div class="controls">
+<h2 id="turnText"></h2>
+<h3 id="diceText">Roll Dice</h3>
+<button onclick="rollDice()">Roll Dice</button>
+<button onclick="toggleTheme()">Theme</button>
+<button onclick="restart()">Restart</button>
+<br>
+Speed <input type="range" min="100" max="800" value="300" id="speed">
+</div>
+
+<div class="board" id="board"></div>
+
+</div>
+
+<audio id="diceSound" src="https://www.soundjay.com/misc/sounds/dice-roll-1.mp3"></audio>
+<audio id="moveSound" src="https://www.soundjay.com/buttons/sounds/button-16.mp3"></audio>
+<audio id="winSound" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
+
+<script>
+
+let board=document.getElementById("board");
+let cells=[];
+let path=[6,7,8,9,10,23,36,49,62,75,88,101,
+114,127,140,139,138,137,136,123,
+110,97,84,71,58,45,32,19,18,17,
+16,15,14,27,40,53,66,79,92,105,
+118,131,130,129,128,115,102,89,
+76,63,50,37];
+
+let safeZones=[0,8,13,21,26,34,39,47];
+let colors=["red","blue","green","yellow"];
+let players=[];
+let currentPlayer=0;
+let diceValue=0;
+let selectedToken=null;
+let moveSpeed=300;
+
+function startGame(){
+
+let count=parseInt(playerCount.value);
+players=[];
+
+for(let i=0;i<count;i++){
+players.push({
+name:colors[i].toUpperCase(),
+color:colors[i],
+tokens:[-1,-1,-1,-1],
+finish:0,
+ai:(i==1) // 2nd player AI
+});
+}
+
+menu.style.display="none";
+game.style.display="block";
+
+createBoard();
+updateTurnText();
+}
+
+function createBoard(){
+board.innerHTML="";
+cells=[];
+for(let i=0;i<169;i++){
+let div=document.createElement("div");
+div.classList.add("cell");
+board.appendChild(div);
+cells.push(div);
+}
+render();
+}
+
+speed.oninput=function(){
+moveSpeed=this.value;
+}
+
+function rollDice(){
+diceValue=Math.floor(Math.random()*6)+1;
+diceText.innerText="Dice: "+diceValue;
+diceSound.play();
+
+if(players[currentPlayer].ai){
+setTimeout(aiMove,600);
+}
+}
+
+function selectToken(pIndex,tIndex){
+if(pIndex!=currentPlayer) return;
+selectedToken=tIndex;
+render();
+}
+
+function moveToken(index){
+
+let pos=players[currentPlayer].tokens[index];
+
+if(pos==-1 && diceValue==6){
+players[currentPlayer].tokens[index]=0;
+}
+else if(pos>=0){
+players[currentPlayer].tokens[index]+=diceValue;
+
+if(players[currentPlayer].tokens[index]>=path.length){
+players[currentPlayer].tokens[index]=-2;
+players[currentPlayer].finish++;
+checkWin();
+}
+}
+
+checkKill();
+render();
+
+if(diceValue!=6){
+nextTurn();
+}
+}
+
+function aiMove(){
+let aiTokens=players[currentPlayer].tokens;
+
+/* Attack priority */
+for(let i=0;i<4;i++){
+let pos=aiTokens[i];
+if(pos>=0){
+let target=pos+diceValue;
+for(let p=0;p<players.length;p++){
+if(p==currentPlayer) continue;
+if(players[p].tokens.includes(target) &&
+!safeZones.includes(target)){
+moveToken(i);
+return;
+}
+}
+}
+}
+
+/* Otherwise random */
+for(let i=0;i<4;i++){
+if(aiTokens[i]>=-1){
+moveToken(i);
+return;
+}
+}
+}
+
+function checkKill(){
+let currentTokens=players[currentPlayer].tokens;
+
+for(let p=0;p<players.length;p++){
+if(p==currentPlayer) continue;
+
+for(let t=0;t<4;t++){
+if(players[p].tokens[t]>=0){
+if(currentTokens.includes(players[p].tokens[t]) &&
+!safeZones.includes(players[p].tokens[t])){
+players[p].tokens[t]=-1;
+}
+}
+}
+}
+}
+
+function checkWin(){
+if(players[currentPlayer].finish==4){
+winSound.play();
+alert(players[currentPlayer].name+" Wins!");
+restart();
+}
+}
+
+function nextTurn(){
+currentPlayer++;
+if(currentPlayer>=players.length) currentPlayer=0;
+updateTurnText();
+selectedToken=null;
+}
+
+function updateTurnText(){
+turnText.innerText=players[currentPlayer].name+" Turn";
+}
+
+function render(){
+cells.forEach(c=>c.innerHTML="");
+
+players.forEach((player,pIndex)=>{
+player.tokens.forEach((pos,tIndex)=>{
+if(pos>=0 && pos<path.length){
+let token=document.createElement("div");
+token.classList.add("token",player.color);
+if(pIndex==currentPlayer && selectedToken==tIndex)
+token.classList.add("selected");
+
+token.onclick=function(){
+selectToken(pIndex,tIndex);
+};
+
+cells[path[pos]].appendChild(token);
+moveSound.play();
+}
+});
+});
+}
+
+board.addEventListener("click",()=>{
+if(!players[currentPlayer].ai && selectedToken!=null){
+moveToken(selectedToken);
+}
+});
+
+function toggleTheme(){
+document.body.classList.toggle("light");
+}
+
+function restart(){
+location.reload();
+}
+
+</script>
+</body>
+</html>
